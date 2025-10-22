@@ -1,21 +1,22 @@
-from django.shortcuts import render
-
-# Create your views here.
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .models import AnalyzedString
 from .serializers import AnalyzedStringSerializer
-from django.http import Http404
-from django.db.models import Q
+from django.http import HttpResponse
+import hashlib
 
 class StringsAPI(APIView):
     def post(self, request):
         serializer = AnalyzedStringSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            except Exception as e:
+                return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(serializer.errors, status=serializer.status_code if hasattr(serializer, 'status_code') else status.HTTP_400_BAD_REQUEST)
+
 
     def get(self, request):
         queryset = AnalyzedString.objects.all()
@@ -43,21 +44,24 @@ class StringsAPI(APIView):
 
 class GetSpecificString(APIView):
     def get(self, request, string_value):
-        try:
-            string = AnalyzedString.objects.get(value=string_value)
-            serializer = AnalyzedStringSerializer(string)
-            return Response(serializer.data)
-        except AnalyzedString.DoesNotExist:
-            raise Http404("String does not exist in the system")
+        sha256_hash = hashlib.sha256(string_value.encode()).hexdigest()
+        analyzed_string = AnalyzedString.objects.filter(sha256_hash=sha256_hash).first()
+        if not analyzed_string:
+            return Response({"detail": "String does not exist in the system"}, status=status.HTTP_404_NOT_FOUND)
+        serializer = AnalyzedStringSerializer(analyzed_string)
+        return Response(serializer.data)
 
 class DeleteString(APIView):
     def delete(self, request, string_value):
         try:
-            string = AnalyzedString.objects.get(value=string_value)
-            string.delete()
+            sha256_hash = hashlib.sha256(string_value.encode()).hexdigest()
+            analyzed_string = AnalyzedString.objects.filter(sha256_hash=sha256_hash).first()
+            if not analyzed_string:
+                return Response({"detail": "String does not exist in the system"}, status=status.HTTP_404_NOT_FOUND)
+            analyzed_string.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
-        except AnalyzedString.DoesNotExist:
-            raise Http404("String does not exist in the system")
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 class NaturalLanguageFilter(APIView):
     def get(self, request):
         print("NaturalLanguageFilter called with query:", request.query_params.get('query'))
