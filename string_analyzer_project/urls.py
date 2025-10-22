@@ -16,7 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from string_analyzer.views import StringsAPI, GetSpecificString, DeleteString, NaturalLanguageFilter
+from string_analyzer.views import StringsAPI, GetSpecificString, DeleteString, NaturalLanguageFilter, home
 
 urlpatterns = [
     path('admin/', admin.site.urls),
