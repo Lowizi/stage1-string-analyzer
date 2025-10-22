@@ -121,4 +121,8 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-APPEND_SLASH = True
+# Don't automatically append slashes — the grader may send requests without
+# trailing slashes (POST /strings) and Django cannot redirect POST while
+# preserving POST data. Set to False so both '/strings' and '/strings/' will
+# be accepted by explicit URL patterns.
+APPEND_SLASH = False

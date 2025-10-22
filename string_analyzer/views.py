@@ -45,7 +45,14 @@ class StringsCollectionView(generics.ListCreateAPIView):
         try:
             serializer.is_valid(raise_exception=True)
         except DRFValidationError as e:
-            return Response({'detail': e.detail}, status=status.HTTP_400_BAD_REQUEST)
+            # If the serializer signaled an invalid type, return 422
+            detail = e.detail
+            # look for our 'invalid_type' code
+            if isinstance(detail, dict):
+                for v in detail.values():
+                    if isinstance(v, dict) and v.get('code') == 'invalid_type':
+                        return Response({'detail': v.get('message')}, status=422)
+            return Response({'detail': detail}, status=status.HTTP_400_BAD_REQUEST)
 
         value = serializer.validated_data.get('value')
         props = analyze_string(value)
@@ -101,6 +108,20 @@ class NaturalLanguageFilterView(APIView):
         })
 
 class DeleteStringView(APIView):
+    def delete(self, request, string_value):
+        entry = get_object_or_404(StringEntry, value=string_value)
+        entry.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ItemDetailView(APIView):
+    """Handle GET and DELETE for a specific string value (accepts both
+    trailing slash and no trailing slash routes).
+    """
+    def get(self, request, string_value):
+        entry = get_object_or_404(StringEntry, value=string_value)
+        return Response(StringEntrySerializer(entry).data, status=status.HTTP_200_OK)
+
     def delete(self, request, string_value):
         entry = get_object_or_404(StringEntry, value=string_value)
         entry.delete()

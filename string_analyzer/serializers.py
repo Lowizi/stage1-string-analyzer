@@ -23,8 +23,14 @@ class CreateStringSerializer(serializers.Serializer):
     value = serializers.CharField()
 
     def validate_value(self, value):
+        # DRF will coerce JSON types; ensure incoming value is a string
+        if value is None:
+            raise serializers.ValidationError("Value is required.")
         if not isinstance(value, str):
-            raise serializers.ValidationError("Value must be a string.")
+            raise serializers.ValidationError({
+                'code': 'invalid_type',
+                'message': 'Value must be a string.'
+            })
         if not value.strip():
             raise serializers.ValidationError("Value cannot be empty.")
         return value
