@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from .models import AnalyzedString
 import hashlib
-from collections import Counter 
+from collections import Counter
+from rest_framework.exceptions import ValidationError
 
 class AnalyzedStringSerializer(serializers.ModelSerializer):
     id = serializers.CharField(source='sha256_hash', read_only=True)
@@ -22,15 +23,24 @@ class AnalyzedStringSerializer(serializers.ModelSerializer):
             'character_frequency_map': obj.character_frequency_map
         }
 
+    def validate(self, data):
+        value = data.get('value')
+        if not value:
+            raise ValidationError({"value": ["This field is required."]}, code=422)
+        if not isinstance(value, str):
+            raise ValidationError({"value": ["Must be a string."]}, code=422)
+        sha256_hash = hashlib.sha256(value.encode()).hexdigest()
+        if AnalyzedString.objects.filter(sha256_hash=sha256_hash).exists():
+            raise ValidationError({"value": ["Analyzed string with this value already exists."]}, code=409)
+        return data
+
     def create(self, validated_data):
         value = validated_data['value']
         sha256_hash = hashlib.sha256(value.encode()).hexdigest()
-        if AnalyzedString.objects.filter(sha256_hash=sha256_hash).exists():
-            raise serializers.ValidationError("String already exists in the system", code=409)
         instance = AnalyzedString(
             value=value,
             length=len(value),
-            is_palindrome=value.lower() == value.lower()[::-1],
+            is_palindrome=value.lower() == value.lower()[::-1],  # Case-insensitive
             unique_characters=len(set(value)),
             word_count=len(value.split()),
             sha256_hash=sha256_hash,
@@ -38,3 +48,4 @@ class AnalyzedStringSerializer(serializers.ModelSerializer):
         )
         instance.save()
         return instance
+            
