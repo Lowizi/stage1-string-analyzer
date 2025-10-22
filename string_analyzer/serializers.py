@@ -32,11 +32,6 @@ class CreateStringSerializer(serializers.Serializer):
     def create(self, validated_data):
         value = validated_data['value']
         props = analyze_string(value)
-
-        from .models import StringEntry
-        if StringEntry.objects.filter(id=props['sha256_hash']).exists():
-            raise serializers.ValidationError("String already exists.")
-
         entry = StringEntry.objects.create(
             id=props['sha256_hash'],
             value=value,

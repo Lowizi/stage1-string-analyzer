@@ -6,7 +6,11 @@ import sys
 
 def main():
     """Run administrative tasks."""
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'string_analyzer_project.settings')
+    # Ensure the correct settings module is used. Some environments may have
+    # DJANGO_SETTINGS_MODULE set to a different value (for example 'controller.settings')
+    # which causes ImportError. Force the project setting here so manage.py always
+    # uses the local project's settings.
+    os.environ['DJANGO_SETTINGS_MODULE'] = 'string_analyzer_project.settings'
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

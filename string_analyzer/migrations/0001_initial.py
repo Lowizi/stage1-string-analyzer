@@ -12,15 +12,14 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='AnalyzedString',
+            name='StringEntry',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.CharField(primary_key=True, max_length=64, editable=False)),
                 ('value', models.TextField(unique=True)),
-                ('length', models.IntegerField()),
+                ('length', models.PositiveIntegerField()),
                 ('is_palindrome', models.BooleanField()),
-                ('unique_characters', models.IntegerField()),
-                ('word_count', models.IntegerField()),
-                ('sha256_hash', models.CharField(max_length=64, unique=True)),
+                ('unique_characters', models.PositiveIntegerField()),
+                ('word_count', models.PositiveIntegerField()),
                 ('character_frequency_map', models.JSONField()),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
             ],
