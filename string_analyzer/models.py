@@ -1,28 +1,23 @@
 from django.db import models
 
 # Create your models here.
-from django.db import models
 import hashlib
-from collections import Counter
+from django.db import models
+from django.utils import timezone
 
-class AnalyzedString(models.Model):
+class StringEntry(models.Model):
+    id = models.CharField(primary_key=True, max_length=64, editable=False)
     value = models.TextField(unique=True)
-    length = models.IntegerField()
+    length = models.PositiveIntegerField()
     is_palindrome = models.BooleanField()
-    unique_characters = models.IntegerField()
-    word_count = models.IntegerField()
-    sha256_hash = models.CharField(max_length=64, unique=True)
+    unique_characters = models.PositiveIntegerField()
+    word_count = models.PositiveIntegerField()
     character_frequency_map = models.JSONField()
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)
 
     def save(self, *args, **kwargs):
-        if not self.pk:  # Only compute on creation
-            self.length = len(self.value)
-            self.is_palindrome = self.value.lower() == self.value.lower()[::-1]
-            self.unique_characters = len(set(self.value))
-            self.word_count = len(self.value.split())
-            self.sha256_hash = hashlib.sha256(self.value.encode()).hexdigest()
-            self.character_frequency_map = dict(Counter(self.value))
+        if not self.id:
+            self.id = hashlib.sha256(self.value.encode('utf-8')).hexdigest()
         super().save(*args, **kwargs)
 
     def __str__(self):

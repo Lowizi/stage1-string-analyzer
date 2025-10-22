@@ -1,54 +1,49 @@
 from rest_framework import serializers
-from .models import AnalyzedString
-import hashlib
-from collections import Counter
-from rest_framework.exceptions import ValidationError
+from .models import StringEntry
+from .utils import analyze_string
 
-class AnalyzedStringSerializer(serializers.ModelSerializer):
-    id = serializers.CharField(source='sha256_hash', read_only=True)
+class StringEntrySerializer(serializers.ModelSerializer):
     properties = serializers.SerializerMethodField()
 
     class Meta:
-        model = AnalyzedString
+        model = StringEntry
         fields = ['id', 'value', 'properties', 'created_at']
-        read_only_fields = ['id', 'properties', 'created_at']
 
     def get_properties(self, obj):
         return {
-            'length': obj.length,
-            'is_palindrome': obj.is_palindrome,
-            'unique_characters': obj.unique_characters,
-            'word_count': obj.word_count,
-            'sha256_hash': obj.sha256_hash,
-            'character_frequency_map': obj.character_frequency_map
+            "length": obj.length,
+            "is_palindrome": obj.is_palindrome,
+            "unique_characters": obj.unique_characters,
+            "word_count": obj.word_count,
+            "sha256_hash": obj.id,
+            "character_frequency_map": obj.character_frequency_map
         }
 
-    def validate(self, data):
-        value = data.get('value')
-        if not value:
-            raise ValidationError({"value": ["This field is required."]}, code=422)
+class CreateStringSerializer(serializers.Serializer):
+    value = serializers.CharField()
+
+    def validate_value(self, value):
         if not isinstance(value, str):
-            raise ValidationError({"value": ["Must be a string."]}, code=422)
-        # Calculate SHA-256 hash
-        sha256_hash = hashlib.sha256(value.encode()).hexdigest()
-        # Check for duplicates
-        if AnalyzedString.objects.filter(sha256_hash=sha256_hash).exists():
-            raise ValidationError({"value": ["Analyzed string with this value already exists."]}, code=409)
-        return data
+            raise serializers.ValidationError("Value must be a string.")
+        if not value.strip():
+            raise serializers.ValidationError("Value cannot be empty.")
+        return value
 
     def create(self, validated_data):
         value = validated_data['value']
-        # Case-insensitive palindrome check
-        is_palindrome = value.lower() == value.lower()[::-1]
-        sha256_hash = hashlib.sha256(value.encode()).hexdigest()
-        instance = AnalyzedString(
+        props = analyze_string(value)
+
+        from .models import StringEntry
+        if StringEntry.objects.filter(id=props['sha256_hash']).exists():
+            raise serializers.ValidationError("String already exists.")
+
+        entry = StringEntry.objects.create(
+            id=props['sha256_hash'],
             value=value,
-            length=len(value),
-            is_palindrome=is_palindrome,
-            unique_characters=len(set(value)),
-            word_count=len(value.split()),
-            sha256_hash=sha256_hash,
-            character_frequency_map=dict(Counter(value))
+            length=props['length'],
+            is_palindrome=props['is_palindrome'],
+            unique_characters=props['unique_characters'],
+            word_count=props['word_count'],
+            character_frequency_map=props['character_frequency_map']
         )
-        instance.save()
-        return instance
+        return entry

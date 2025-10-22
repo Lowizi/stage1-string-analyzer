@@ -1,84 +1,63 @@
-from rest_framework.views import APIView
+
+from rest_framework import generics, status
 from rest_framework.response import Response
-from rest_framework import status
-from rest_framework import viewsets
-from .models import AnalyzedString
-from .serializers import AnalyzedStringSerializer
-import hashlib
-from django.http import HttpResponse
+from rest_framework.views import APIView
+from django.shortcuts import get_object_or_404
 
-class StringsAPI(APIView):
-    def post(self, request):
-        print("StringsAPI POST called with data:", request.data)  # Debug print
-        serializer = AnalyzedStringSerializer(data=request.data)
-        if serializer.is_valid():
-            try:
-                serializer.save()
-                print("POST successful, returning 201")  # Debug print
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            except Exception as e:
-                print(f"POST exception: {str(e)}")  # Debug print
-                return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        if "value" in serializer.errors and "already exists" in str(serializer.errors["value"]):
-            print("POST duplicate detected, returning 409")  # Debug print
-            return Response(serializer.errors, status=status.HTTP_409_CONFLICT)
-        print("POST validation failed, returning 422")  # Debug print
-        return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+from .models import StringEntry
+from .serializers import StringEntrySerializer, CreateStringSerializer
+from .filters import apply_filters
+from .nlp_paser import parse_natural_language
 
-class StringViewSet(viewsets.ViewSet):
-    lookup_field = 'string_value'  # Custom lookup field instead of pk
+class CreateStringView(generics.CreateAPIView):
+    serializer_class = CreateStringSerializer
 
-    def retrieve(self, request, string_value=None):
-        print(f"Retrieve called with string_value: {string_value}")  # Debug print
-        if not string_value:
-            return Response({"detail": "String value required"}, status=status.HTTP_400_BAD_REQUEST)
-        sha256_hash = hashlib.sha256(string_value.encode()).hexdigest()
-        analyzed_string = AnalyzedString.objects.filter(sha256_hash=sha256_hash).first()
-        if not analyzed_string:
-            print("No string found, returning 404")  # Debug print
-            return Response({"detail": "String does not exist in the system"}, status=status.HTTP_404_NOT_FOUND)
-        serializer = AnalyzedStringSerializer(analyzed_string)
-        print("String found, returning 200")  # Debug print
-        return Response(serializer.data)
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        entry = serializer.save()
+        return Response(StringEntrySerializer(entry).data, status=status.HTTP_201_CREATED)
 
-    def destroy(self, request, string_value=None):
-        print(f"Destroy called with string_value: {string_value}")  # Debug print
-        print(f"Request method: {request.method}")  # Check the method
-        if not string_value:
-            return Response({"detail": "String value required"}, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            sha256_hash = hashlib.sha256(string_value.encode()).hexdigest()
-            print(f"Calculated sha256_hash: {sha256_hash}")  # Debug print
-            analyzed_string = AnalyzedString.objects.filter(sha256_hash=sha256_hash).first()
-            print(f"Queried analyzed_string: {analyzed_string}")  # Debug print
-            if not analyzed_string:
-                print("No matching string found, returning 404")  # Debug print
-                return Response({"detail": "String does not exist"}, status=status.HTTP_404_NOT_FOUND)
-            analyzed_string.delete()
-            print("String deleted successfully")  # Debug print
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except Exception as e:
-            print(f"Exception occurred: {str(e)}")  # Debug print
-            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+class GetStringView(APIView):
+    def get(self, request, string_value):
+        entry = get_object_or_404(StringEntry, value=string_value)
+        return Response(StringEntrySerializer(entry).data, status=status.HTTP_200_OK)
 
-class NaturalLanguageFilter(APIView):
+class ListStringsView(APIView):
     def get(self, request):
-        print("NaturalLanguageFilter called with query:", request.query_params.get('query'))  # Debug print
-        query = request.query_params.get('query', '').lower()
-        queryset = AnalyzedString.objects.all()
-        parsed_filters = {}
-        if 'palindromic' in query:
-            queryset = queryset.filter(is_palindrome=True)
-            parsed_filters['is_palindrome'] = True
-        if 'single word' in query:
-            queryset = queryset.filter(word_count=1)
-            parsed_filters['word_count'] = 1
-        serializer = AnalyzedStringSerializer(queryset, many=True)
+        qs = StringEntry.objects.all()
+        qs = apply_filters(qs, request.query_params)
+        serializer = StringEntrySerializer(qs, many=True)
         return Response({
-            'data': serializer.data,
-            'count': queryset.count(),
-            'interpreted_query': {'original': query, 'parsed_filters': parsed_filters}
+            "data": serializer.data,
+            "count": qs.count(),
+            "filters_applied": dict(request.query_params)
         })
 
-def home(request):
-    return HttpResponse("String Analyzer API")
+class NaturalLanguageFilterView(APIView):
+    def get(self, request):
+        query = request.query_params.get('query', '')
+        if not query:
+            return Response({"detail": "Query is required."}, status=400)
+        try:
+            filters = parse_natural_language(query)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=400)
+
+        qs = apply_filters(StringEntry.objects.all(), filters)
+        serializer = StringEntrySerializer(qs, many=True)
+        return Response({
+            "data": serializer.data,
+            "count": qs.count(),
+            "interpreted_query": {
+                "original": query,
+                "parsed_filters": filters
+            }
+        })
+
+class DeleteStringView(APIView):
+    def delete(self, request, string_value):
+        entry = get_object_or_404(StringEntry, value=string_value)
+        entry.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
