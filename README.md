@@ -23,3 +23,5 @@
 - GET /strings/?<filters>
 - GET /strings/filter-by-natural-language/?query=<query>
 - DELETE /strings/<string_value>/delete/
+
+Url = https://stage1-string-analyzer.onrender.com
