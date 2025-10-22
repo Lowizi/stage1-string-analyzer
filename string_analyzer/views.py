@@ -1,70 +1,69 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework import viewsets
 from .models import AnalyzedString
 from .serializers import AnalyzedStringSerializer
-from django.http import HttpResponse
 import hashlib
+from django.http import HttpResponse
 
 class StringsAPI(APIView):
     def post(self, request):
+        print("StringsAPI POST called with data:", request.data)  # Debug print
         serializer = AnalyzedStringSerializer(data=request.data)
         if serializer.is_valid():
             try:
                 serializer.save()
+                print("POST successful, returning 201")  # Debug print
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
             except Exception as e:
+                print(f"POST exception: {str(e)}")  # Debug print
                 return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        return Response(serializer.errors, status=serializer.status_code if hasattr(serializer, 'status_code') else status.HTTP_400_BAD_REQUEST)
+        if "value" in serializer.errors and "already exists" in str(serializer.errors["value"]):
+            print("POST duplicate detected, returning 409")  # Debug print
+            return Response(serializer.errors, status=status.HTTP_409_CONFLICT)
+        print("POST validation failed, returning 422")  # Debug print
+        return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
+class StringViewSet(viewsets.ViewSet):
+    lookup_field = 'string_value'  # Custom lookup field instead of pk
 
-    def get(self, request):
-        queryset = AnalyzedString.objects.all()
-        is_palindrome = request.query_params.get('is_palindrome')
-        min_length = request.query_params.get('min_length')
-        max_length = request.query_params.get('max_length')
-        word_count = request.query_params.get('word_count')
-        contains_character = request.query_params.get('contains_character')
-        if is_palindrome is not None:
-            queryset = queryset.filter(is_palindrome=is_palindrome.lower() == 'true')
-        if min_length is not None:
-            queryset = queryset.filter(length__gte=int(min_length))
-        if max_length is not None:
-            queryset = queryset.filter(length__lte=int(max_length))
-        if word_count is not None:
-            queryset = queryset.filter(word_count=int(word_count))
-        if contains_character is not None:
-            queryset = queryset.filter(value__icontains=contains_character)
-        serializer = AnalyzedStringSerializer(queryset, many=True)
-        return Response({
-            'data': serializer.data,
-            'count': queryset.count(),
-            'filters_applied': {k: v for k, v in request.query_params.items() if v}
-        })
-
-class GetSpecificString(APIView):
-    def get(self, request, string_value):
+    def retrieve(self, request, string_value=None):
+        print(f"Retrieve called with string_value: {string_value}")  # Debug print
+        if not string_value:
+            return Response({"detail": "String value required"}, status=status.HTTP_400_BAD_REQUEST)
         sha256_hash = hashlib.sha256(string_value.encode()).hexdigest()
         analyzed_string = AnalyzedString.objects.filter(sha256_hash=sha256_hash).first()
         if not analyzed_string:
+            print("No string found, returning 404")  # Debug print
             return Response({"detail": "String does not exist in the system"}, status=status.HTTP_404_NOT_FOUND)
         serializer = AnalyzedStringSerializer(analyzed_string)
+        print("String found, returning 200")  # Debug print
         return Response(serializer.data)
 
-class DeleteString(APIView):
-    def delete(self, request, string_value):
+    def destroy(self, request, string_value=None):
+        print(f"Destroy called with string_value: {string_value}")  # Debug print
+        print(f"Request method: {request.method}")  # Check the method
+        if not string_value:
+            return Response({"detail": "String value required"}, status=status.HTTP_400_BAD_REQUEST)
         try:
             sha256_hash = hashlib.sha256(string_value.encode()).hexdigest()
+            print(f"Calculated sha256_hash: {sha256_hash}")  # Debug print
             analyzed_string = AnalyzedString.objects.filter(sha256_hash=sha256_hash).first()
+            print(f"Queried analyzed_string: {analyzed_string}")  # Debug print
             if not analyzed_string:
-                return Response({"detail": "String does not exist in the system"}, status=status.HTTP_404_NOT_FOUND)
+                print("No matching string found, returning 404")  # Debug print
+                return Response({"detail": "String does not exist"}, status=status.HTTP_404_NOT_FOUND)
             analyzed_string.delete()
+            print("String deleted successfully")  # Debug print
             return Response(status=status.HTTP_204_NO_CONTENT)
         except Exception as e:
+            print(f"Exception occurred: {str(e)}")  # Debug print
             return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class NaturalLanguageFilter(APIView):
     def get(self, request):
-        print("NaturalLanguageFilter called with query:", request.query_params.get('query'))
+        print("NaturalLanguageFilter called with query:", request.query_params.get('query'))  # Debug print
         query = request.query_params.get('query', '').lower()
         queryset = AnalyzedString.objects.all()
         parsed_filters = {}
@@ -80,7 +79,6 @@ class NaturalLanguageFilter(APIView):
             'count': queryset.count(),
             'interpreted_query': {'original': query, 'parsed_filters': parsed_filters}
         })
-from django.http import HttpResponse
 
 def home(request):
     return HttpResponse("String Analyzer API")

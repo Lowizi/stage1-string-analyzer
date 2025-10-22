@@ -15,14 +15,18 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
-from string_analyzer.views import StringsAPI, GetSpecificString, DeleteString, NaturalLanguageFilter, home
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from string_analyzer.views import StringsAPI, StringViewSet, NaturalLanguageFilter, home
+
+# Create a router and register the viewset
+router = DefaultRouter()
+router.register(r'strings', StringViewSet, basename='string')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('strings/', StringsAPI.as_view(), name='strings_api'),
+    path('', include(router.urls)),  # Include router patterns
     path('strings/filter-by-natural-language/', NaturalLanguageFilter.as_view(), name='natural_language_filter'),
-    path('strings/<str:string_value>/', GetSpecificString.as_view(), name='get_specific_string'),
-    path('strings/<str:string_value>/delete/', DeleteString.as_view(), name='delete_string'),
     path('', home),
 ]

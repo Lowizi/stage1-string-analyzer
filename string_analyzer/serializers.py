@@ -29,18 +29,22 @@ class AnalyzedStringSerializer(serializers.ModelSerializer):
             raise ValidationError({"value": ["This field is required."]}, code=422)
         if not isinstance(value, str):
             raise ValidationError({"value": ["Must be a string."]}, code=422)
+        # Calculate SHA-256 hash
         sha256_hash = hashlib.sha256(value.encode()).hexdigest()
+        # Check for duplicates
         if AnalyzedString.objects.filter(sha256_hash=sha256_hash).exists():
             raise ValidationError({"value": ["Analyzed string with this value already exists."]}, code=409)
         return data
 
     def create(self, validated_data):
         value = validated_data['value']
+        # Case-insensitive palindrome check
+        is_palindrome = value.lower() == value.lower()[::-1]
         sha256_hash = hashlib.sha256(value.encode()).hexdigest()
         instance = AnalyzedString(
             value=value,
             length=len(value),
-            is_palindrome=value.lower() == value.lower()[::-1],  # Case-insensitive
+            is_palindrome=is_palindrome,
             unique_characters=len(set(value)),
             word_count=len(value.split()),
             sha256_hash=sha256_hash,
@@ -48,4 +52,3 @@ class AnalyzedStringSerializer(serializers.ModelSerializer):
         )
         instance.save()
         return instance
-            
