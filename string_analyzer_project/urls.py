@@ -1,3 +1,4 @@
+
 """
 URL configuration for string_analyzer_project project.
 
@@ -25,8 +26,8 @@ router.register(r'strings', StringViewSet, basename='string')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('strings/', StringsAPI.as_view(), name='strings_api'),
-    path('', include(router.urls)),  # Include router patterns
-    path('strings/filter-by-natural-language/', NaturalLanguageFilter.as_view(), name='natural_language_filter'),
-    path('', home),
+    path('strings/', StringsAPI.as_view(), name='strings_api'),  # POST endpoint
+    path('api/', include(router.urls)),  # Include router patterns (GET, DELETE for strings)
+    path('strings/filter-by-natural-language/', NaturalLanguageFilter.as_view(), name='natural_language_filter'),  # GET filter
+    path('home/', home),  # Move home to avoid root conflict
 ]
