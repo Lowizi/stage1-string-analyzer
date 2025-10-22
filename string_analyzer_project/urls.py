@@ -24,4 +24,5 @@ urlpatterns = [
     path('strings/filter-by-natural-language/', NaturalLanguageFilter.as_view(), name='natural_language_filter'),
     path('strings/<str:string_value>/', GetSpecificString.as_view(), name='get_specific_string'),
     path('strings/<str:string_value>/delete/', DeleteString.as_view(), name='delete_string'),
+    path('', home),
 ]

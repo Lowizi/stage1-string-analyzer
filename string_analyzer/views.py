@@ -76,3 +76,7 @@ class NaturalLanguageFilter(APIView):
             'count': queryset.count(),
             'interpreted_query': {'original': query, 'parsed_filters': parsed_filters}
         })
+from django.http import HttpResponse
+
+def home(request):
+    return HttpResponse("String Analyzer API")
